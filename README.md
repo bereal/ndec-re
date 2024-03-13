@@ -8,7 +8,7 @@ It was attached to an old infosec e-book in the form of UU-encoded text and desc
 It became an interesting challenge to reverse-engineer the program and see what it does.
 This repository will contain the original program as well as my findings about it.
 
-A stretch goal is to re-implement the program in Python.
+A stretch goal is to re-implement the program in C.
 
 
 ### General Overview
@@ -125,7 +125,7 @@ cycle:
         neg   al        ; I don't know what it's supposed to do
         ror   al, cl    ; (al is always 0 here anyway)
 skip:
-        stosb
+        stosbb
         ror   dl, cl
         xor   dl, dh
         shl   dh, 1
@@ -138,3 +138,31 @@ skip:
 ```
 </details>
 
+The matching C code:
+
+```c
+inline static uint8_t ror(uint8_t x, uint8_t n) {
+    if (!(n = n & 7)) {
+        return x;
+    }
+
+    return (x >> n) | (x << (8 - n));
+}
+
+// data is expected to contain the password padded with zeros and be at least len+2 bytes long.
+// In the real program len is always 0x7d
+void generate_gamma(uint8_t *data, size_t len) {
+    uint8_t st1 = ~data[0];
+    uint8_t st2 = ~data[1];
+    size_t i = 0, j = 2;
+
+    for (size_t k = len; k; k--, j+=2) {
+        uint8_t cur = ~(data[j] - data[j+1]) ^ (--st1);
+        data[i++] = cur;
+
+        st1 = ror(st1, k) ^ st2;
+        st2 = -(st2 << 1) - cur;
+        st1 += st2;
+    }
+}
+```
