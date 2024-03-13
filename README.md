@@ -48,28 +48,28 @@ The program starts as follows:
 <details><summary>Click to expand</summary>
 
 ```assembly
-push ax
-mov ax,0x1f75    ; how much space is needed
-mov dx,0x52e     ; (this is where we're going to copy the code)
-cmp ax,sp        ; check if there's enough space
-jnc 0x84         ; exit if not
-mov ax,sp        ; copying the code below stack
-sub ax,0x342     ;
-and ax,0xfff0    ; align to the paragraph boundary
-mov di,ax        ; destination
-mov cx,0xa1      ; copying 0xa1 words
-mov si,0x18e     ; source
-cld
-rep movsw        ; copy
-mov bx,ax        ; the destination address is aligned,
-mov cl,0x4       ; address it as a segment
-shr bx,cl
-mov cx,ds
-add bx,cx        ; bx is now the segment of the copied code
-push bx
-xor bx,bx        ; offset is 0
-push bx
-retf             ; jump to the copied code
+        push ax
+        mov ax,0x1f75    ; how much space is needed
+        mov dx,0x52e     ; (this is where we're going to copy the code)
+        cmp ax,sp        ; check if there's enough space
+        jnc 0x84         ; exit if not
+        mov ax,sp        ; copying the code below stack
+        sub ax,0x342     ;
+        and ax,0xfff0    ; align to the paragraph boundary
+        mov di,ax        ; destination
+        mov cx,0xa1      ; copying 0xa1 words
+        mov si,0x18e     ; source
+        cld
+        rep movsw        ; copy
+        mov bx,ax        ; the destination address is aligned,
+        mov cl,0x4       ; address it as a segment
+        shr bx,cl
+        mov cx,ds
+        add bx,cx        ; bx is now the segment of the copied code
+        push bx
+        xor bx,bx        ; offset is 0
+        push bx
+        retf             ; jump to the copied code
 ```
 </details>
 
@@ -96,3 +96,45 @@ The encryption consists of the few steps:
    (the operation is changed by rewriting the assembly instruction right in the code)
  * Generate a 1-byte hash from the second password
  * Walk through the input again and encrypt it byte by byte using the IV, the hash and the gamma (the exact algorithm is TBD)
+
+
+#### Gamma Generation
+
+This is the assembly code that generates gamma from the first password:
+
+<details><summary>Click to expand</summary>
+
+```assembly
+        ; Input: DS:DI = pointer to the password (in fact, DI=0x508)
+
+        not   word ptr [di]
+        mov   si, di
+        lodsw
+        mov   dx, ax
+        mov   cx, 007d
+
+cycle:
+        lodsw
+        sub   al, ah
+        not   al
+        dec   dl
+        xor   al, dl
+
+        or    al, al
+        jne   skip
+        neg   al        ; I don't know what it's supposed to do
+        ror   al, cl    ; (al is always 0 here anyway)
+skip:
+        stosb
+        ror   dl, cl
+        xor   dl, dh
+        shl   dh, 1
+        add   dh, al
+        sub   dl, dh
+        neg   dh
+        loop  cycle
+
+        ret
+```
+</details>
+
