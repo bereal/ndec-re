@@ -91,7 +91,7 @@ The number (hereafter called IV, the Initialization Vector) is both stored at th
 
 The encryption consists of the few steps:
 
- * Generate a random gamma from the first password (the exact algorithm is TBD)
+ * Generate a pseudorandom gamma from the first password
  * Walk through the input byte by byte and combine it with the gamma using one of the three cyclically changing operations: `xor`, `sub` and `add`
    (the operation is changed by rewriting the assembly instruction right in the code)
  * Generate a 1-byte hash from the second password
@@ -164,5 +164,45 @@ void generate_gamma(uint8_t *data, size_t len) {
         st2 = -(st2 << 1) - cur;
         st1 += st2;
     }
+}
+```
+
+#### Gamma hash generation
+
+The hash is generated from the gamma password and stored at `DS:908`, the assembly code:
+
+<details>
+<summary>Click to expand</summary>
+
+```assembly
+        ; Input: DS:DI = pointer to the gamma
+
+        mov  cx, 0xff
+        xor  ax, ax
+cycle:
+        sub  al, cs:[di]
+        xor  ah, al
+        add  al, ah
+        neg  al
+        inc  di
+        loop cycle
+
+        ret
+```
+</details>
+
+The matching C code:
+
+```c
+uint8_t hash(uint8_t *data, size_t len) {
+    uint8_t hash = 0, state = 0;
+    for (size_t i = 0; i < 255; i++) {
+        if (i < len) {
+            hash -= *data++;
+        }
+        state ^= hash;
+        hash = - hash - state;
+    }
+    return hash;
 }
 ```
