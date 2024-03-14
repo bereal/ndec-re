@@ -33,10 +33,10 @@ func Gamma(password []byte, iters int) []byte {
 	return data
 }
 
-func GammaHash(data []byte) byte {
+func GammaHash(gamma []byte) byte {
 	var hash, state byte
 
-	for _, b := range data {
+	for _, b := range gamma {
 		hash -= b
 		state ^= hash
 		hash = -hash - state

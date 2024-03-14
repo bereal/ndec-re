@@ -169,12 +169,12 @@ func Gamma(password []byte, iters int) []byte {
 From the use of `data[j] - data[j+1]` it follows that only difference of the adjacent password characters matters for the result,
 so e.g. `password` and `paxxxprd` produce the same gamma.
 
-#### Gamma hash generation
+#### Hashing the gamma
 
 The hash is generated from the gamma password and stored at `DS:908`, the assembly code:
 
 ```assembly
-        ; Input: DS:DI = pointer to the gamma
+        ; Input: DS:DI = pointer to the gamma (DI=0x508)
 
         mov  cx, 0xff
         xor  ax, ax
@@ -189,7 +189,7 @@ cycle:
         ret
 ```
 
-The matching go code:
+The matching Go code:
 
 ```go
 func GammaHash(data []byte) byte {
@@ -199,6 +199,48 @@ func GammaHash(data []byte) byte {
 		hash -= b
 		state ^= hash
 		hash = -hash - state
+	}
+
+	return hash
+}
+```
+
+
+#### Hashing the second password
+
+The second hash is generated in a similar way from the second password and storead at `DS:909`, the assembly code:
+
+```assembly
+        ; Input: DS:DI = pointer to the second password (DI=0x608)
+
+        mov  cx, 0xff
+        xor  ax, ax
+
+cycle:
+        add  al, cs:[di]
+        sub  ah, al
+        xor  al, ah
+        not  ah
+        inc  di
+        loop cycle
+
+        ret
+```
+
+The matching Go code:
+
+```go
+func PasswordHash(password []byte) byte {
+	data := make([]byte, 0xff)
+	copy(data, password)
+
+	var hash, state byte
+
+	for _, b := range data {
+		hash += b
+		state -= hash
+		hash ^= state
+		state ^= 0xff
 	}
 
 	return hash
