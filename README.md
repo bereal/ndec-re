@@ -8,7 +8,7 @@ It was attached to an old infosec e-book in the form of UU-encoded text and desc
 It became an interesting challenge to reverse-engineer the program and see what it does.
 This repository will contain the original program as well as my findings about it.
 
-A stretch goal is to re-implement the program in C.
+A stretch goal is to re-implement the program in a high-level language.
 
 
 ### General Overview
@@ -138,41 +138,40 @@ skip:
 ```
 </details>
 
-The matching C code:
+The matching Go code:
 
-```c
-inline static uint8_t ror(uint8_t x, uint8_t n) {
-    if (!(n = n & 7)) {
-        return x;
-    }
+```go
+// iters are 0x7d in the original code, gamma is always 0xff bytes long
+// (the maximum password length is 255)
+func Gamma(password []byte, iters int) []byte {
+	data := make([]byte, 0xff)
+	copy(data, password)
+	st1, st2 := 0xff^data[0], 0xff^data[1]
+	i, j := 0, 2
 
-    return (x >> n) | (x << (8 - n));
-}
+	var k int
+	for k = -iters; k < 0; k++ {
+		st1--
+		cur := 0xff ^ (data[j] - data[j+1]) ^ st1
+		data[i] = cur
+		i++
+		j += 2
 
-// data is expected to contain the password padded with zeros and be at least len+2 bytes long.
-// In the real program len is always 0x7d
-void generate_gamma(uint8_t *data, size_t len) {
-    uint8_t st1 = ~data[0];
-    uint8_t st2 = ~data[1];
-    size_t i = 0, j = 2;
+		st1 = bits.RotateLeft8(st1, k) ^ st2
+		st2 = -(st2 << 1) - cur
+		st1 += st2
+	}
 
-    for (size_t k = len; k; k--, j+=2) {
-        uint8_t cur = ~(data[j] - data[j+1]) ^ (--st1);
-        data[i++] = cur;
-
-        st1 = ror(st1, k) ^ st2;
-        st2 = -(st2 << 1) - cur;
-        st1 += st2;
-    }
+	return data
 }
 ```
+
+From the use of `data[j] - data[j+1]` it follows that only difference of the adjacent password characters matters for the result,
+so e.g. `password` and `paxxxprd` produce the same gamma.
 
 #### Gamma hash generation
 
 The hash is generated from the gamma password and stored at `DS:908`, the assembly code:
-
-<details>
-<summary>Click to expand</summary>
 
 ```assembly
         ; Input: DS:DI = pointer to the gamma
@@ -189,20 +188,19 @@ cycle:
 
         ret
 ```
-</details>
 
-The matching C code:
+The matching go code:
 
-```c
-uint8_t hash(uint8_t *data, size_t len) {
-    uint8_t hash = 0, state = 0;
-    for (size_t i = 0; i < 255; i++) {
-        if (i < len) {
-            hash -= *data++;
-        }
-        state ^= hash;
-        hash = - hash - state;
-    }
-    return hash;
+```go
+func GammaHash(data []byte) byte {
+	var hash, state byte
+
+	for _, b := range data {
+		hash -= b
+		state ^= hash
+		hash = -hash - state
+	}
+
+	return hash
 }
 ```
