@@ -141,16 +141,15 @@ skip:
 The matching Go code:
 
 ```go
-// iters are 0x7d in the original code, gamma is always 0xff bytes long
-// (the maximum password length is 255)
-func Gamma(password []byte, iters int) []byte {
+const gammaIters = 0x7d
+
+func Gamma(password []byte) []byte {
 	data := make([]byte, 0xff)
 	copy(data, password)
 	st1, st2 := 0xff^data[0], 0xff^data[1]
 	i, j := 0, 2
 
-	var k int
-	for k = -iters; k < 0; k++ {
+	for k := -gammaIters; k < 0; k++ {
 		st1--
 		cur := 0xff ^ (data[j] - data[j+1]) ^ st1
 		data[i] = cur
@@ -244,5 +243,81 @@ func PasswordHash(password []byte) byte {
 	}
 
 	return hash
+}
+```
+
+#### Applying gamma to the plain text
+
+To be quite precise, the gamma is not what's usually called a gamma. Either due to a coding mistake or a misunderstanding,
+instead of applying each byte of the gamma to the matching byte of the input, the entire gamma is applied to each character,
+thus being reduced to a single byte. The only thing that changes is the operation that's used; it's cyclically varies
+between `XOR`, `SUB` and `ADD`. The assembly code is as follows:
+
+<details><summary>Click to expand</summary>
+
+```assembly
+        ; Input: DS:SI = plaintext address (SI=0xC75)
+        ;        DS:DI = destination address (DI=1075)
+        ;        CS    = plaintext length
+
+        ; Address 0x90A contains the operation table,
+        ; i.e. bytes 2A, 02, 32 which correspond to SUB, ADD and XOR opcode prefixes
+
+        xor   al, al     ; al refers to the current operation
+        push  cx
+
+plaintext_loop:
+        push  ax
+        lodsb
+        push  cx
+        mov   bx, 0x508  ; gamma address
+        mov   cx, 0xff   ; gamma length
+
+gamma_loop:
+        mov   ah, cs:[bx]
+operation:
+        xor   al, ah     ; this is a self-modified instruction
+        inc   bx
+        loop  gamma_loop
+        stosb
+
+        pop   cx
+        pop   ax
+        push  ax
+        mov   bx, 0x90A   ; operation table
+        xlat
+        mov   cs:[operation], al
+        pop   ax
+        inc   al
+        cmp   al, 3
+        jne   continue
+        xor   al, al      ; reset to the first operation
+continue:
+        loop  plaintext_loop
+
+        ; ... the rest of the encryption procedure
+```
+</details>
+
+The matching Go code (instead of looping through the "gamma" each time, I first reduce it to a single byte):
+
+```go
+func ApplyGamma(data, gamma []byte) {
+	var xor, sum byte
+	for _, b := range gamma {
+		xor ^= b
+		sum += b
+	}
+
+	for i, b := range data {
+		switch i % 3 {
+		case 0:
+			data[i] = b ^ xor
+		case 1:
+			data[i] = b - sum
+		case 2:
+			data[i] = b + sum
+		}
+	}
 }
 ```

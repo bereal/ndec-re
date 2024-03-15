@@ -8,8 +8,7 @@ import (
 
 func TestGamma(t *testing.T) {
 	password := []byte("password")
-	iters := 0x7d
-	gamma := Gamma(password, iters)
+	gamma := Gamma(password)
 
 	expected := cleanupHex(`
 		71cbefc12baa7a7fe7dc9d9f7e71173f7db435ee196a5e7397ff16
@@ -19,7 +18,7 @@ func TestGamma(t *testing.T) {
 		a3a380a16211bb2240d103cb3a4f2cb396
 	`)
 
-	h := hex.EncodeToString(gamma[:iters])
+	h := hex.EncodeToString(gamma[:gammaIters])
 	if h != cleanupHex(expected) {
 		t.Errorf("Expected gamma to be %s, but got %s", expected, h)
 	}
@@ -28,7 +27,7 @@ func TestGamma(t *testing.T) {
 func TestHash(t *testing.T) {
 	data := []byte("password")
 
-	gamma := Gamma(data, 0x7d)
+	gamma := Gamma(data)
 	hash := GammaHash(gamma)
 
 	if hash != 0xac {
@@ -38,4 +37,14 @@ func TestHash(t *testing.T) {
 
 func cleanupHex(s string) string {
 	return regexp.MustCompile(`[^0-9a-fA-F]`).ReplaceAllString(s, "")
+}
+
+func TestApplyGamma(t *testing.T) {
+	gamma := Gamma([]byte("password"))
+	data := []byte("test")
+	ApplyGamma(data, gamma)
+	expected := `647f5964`
+	if hex.EncodeToString(data) != expected {
+		t.Errorf("Expected data to be %s, but got %s", expected, hex.EncodeToString(data))
+	}
 }
