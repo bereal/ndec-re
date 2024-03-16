@@ -71,10 +71,10 @@ func Round2(data, gamma []byte, iv, pwHash byte) {
 	gi := 0
 	for i, b := range data {
 		x := gamma[gi]
-		gi++
 		if x == 0 {
 			x, gi = gamma[0], 0
 		}
+		gi++
 
 		x += pwHash
 		b = ((b ^ iv) + x) ^ x - x
