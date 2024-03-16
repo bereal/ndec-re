@@ -391,6 +391,8 @@ func Round2(data, gamma []byte, iv, pwHash byte) {
 
 The last round is similar to the second, except that it uses the plain second password and the gamma hash:
 
+<details><summary>Click to expand</summary>
+
 ```assembly
         push  cx
         mov   di, 0x1075          ; destination address
@@ -411,12 +413,14 @@ read_password:
         inc   bx
         or    al, al
         jne   not_zero
-        xor   bx, bx              ; to the password start (but we have still used the terminating zero already)
+        xor   bx, bx              ; to the password start
+                                  ; (but we have still used the terminating zero already)
 not_zero:
         loop  read_password
         pop   cx
         ret                       ; the encryption is done
 ```
+</details>
 
 The matching Go code:
 
