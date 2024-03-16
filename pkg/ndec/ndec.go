@@ -44,7 +44,7 @@ const (
 	Decode Direction = 0xff // -1
 )
 
-func ApplyGamma(data, gamma []byte, encode Direction) {
+func Round1(data, gamma []byte, encode Direction) {
 	var xor, sum byte
 	for _, b := range gamma {
 		xor ^= b
@@ -62,4 +62,20 @@ func ApplyGamma(data, gamma []byte, encode Direction) {
 			data[i] = b + sum
 		}
 	}
+}
+
+func PasswordHash(password []byte) byte {
+	data := make([]byte, 0xff)
+	copy(data, password)
+
+	var hash, state byte
+
+	for _, b := range data {
+		hash += b
+		state -= hash
+		hash ^= state
+		state ^= 0xff
+	}
+
+	return hash
 }

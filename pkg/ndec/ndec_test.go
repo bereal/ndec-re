@@ -34,20 +34,35 @@ func TestGamma(t *testing.T) {
 			t.Errorf("Expected hash to be 0xac, but got %02x", hash)
 		}
 	})
+}
 
-	t.Run("apply gamma", func(t *testing.T) {
+func TestPasswordHash(t *testing.T) {
+	password := []byte("abcdef")
+	hash := PasswordHash(password)
+
+	if hash != 0x24 {
+		t.Errorf("Expected hash to be 0x24, but got %02x", hash)
+	}
+}
+
+func TestEncryption(t *testing.T) {
+	t.Run("round 1", func(t *testing.T) {
 		gamma := Gamma([]byte("password"))
 		data := []byte("test")
-		ApplyGamma(data, gamma, Encode)
+		Round1(data, gamma, Encode)
 		expected := `647f5964`
 		if hex.EncodeToString(data) != expected {
 			t.Errorf("Expected data to be %s, but got %s", expected, hex.EncodeToString(data))
 		}
 
-		ApplyGamma(data, gamma, Decode)
+		Round1(data, gamma, Decode)
 		if string(data) != "test" {
 			t.Errorf("Expected decoded data to be test, but got %s", data)
 		}
+	})
+
+	t.Run("round 2", func(t *testing.T) {
+
 	})
 }
 

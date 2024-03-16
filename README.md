@@ -122,8 +122,8 @@ cycle:
 
         or    al, al
         jne   skip
-        neg   al        ; I don't know what it's supposed to do
-        ror   al, cl    ; (al is always 0 here anyway)
+        neg   al        ; I don't know what it's supposed to do, al is always 0 here anyway
+        ror   al, cl    ; probably it was intended to make gamma zero-terminated, but it doesn't work
 skip:
         stosbb
         ror   dl, cl
@@ -294,6 +294,7 @@ operation:
         xor   al, al      ; reset to the first operation
 continue:
         loop  plaintext_loop
+        pop   cx
 
         ; ... the rest of the encryption procedure
 ```
@@ -302,7 +303,7 @@ continue:
 The matching Go code (instead of looping through the "gamma" each time, I first reduce it to a single byte):
 
 ```go
-func ApplyGamma(data, gamma []byte) {
+func Round1(data, gamma []byte) {
 	var xor, sum byte
 	for _, b := range gamma {
 		xor ^= b
