@@ -11,6 +11,16 @@ This repository will contain the original program as well as my findings about i
 A stretch goal is to re-implement the program in a high-level language.
 
 
+### Go Implementation
+
+I was able to re-implement the encryption part in Go, it can be built using `make` and run as:
+
+```sh
+./ndec -i <input-file> -o <output-file> -p1 <password1> -p2 <password2> [-iv <iv>]
+```
+
+were `iv` is an optional initialization vector (1 byte in the hexadecimal form)
+
 ### General Overview
 
 The program is a simple MS-DOS COM-file. When it's run without any arguments it prints the following message:
