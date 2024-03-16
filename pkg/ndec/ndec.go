@@ -6,6 +6,30 @@ import (
 
 const gammaIters = 0x7d
 
+type NDEC struct {
+	gamma     []byte
+	gammaHash byte
+	pw2       []byte
+	pw2Hash   byte
+}
+
+func New(password1, password2 []byte) *NDEC {
+	gamma := Gamma(password1)
+
+	return &NDEC{
+		gamma:     gamma,
+		gammaHash: GammaHash(gamma),
+		pw2:       password2,
+		pw2Hash:   PasswordHash(password2),
+	}
+}
+
+func (n *NDEC) Encrypt(data []byte, iv byte) {
+	Round1(data, n.gamma, Encode)
+	Round2(data, n.gamma, iv, n.pw2Hash)
+	Round3(data, n.pw2, n.gammaHash)
+}
+
 func Gamma(password []byte) []byte {
 	data := make([]byte, 0xff)
 	copy(data, password)
