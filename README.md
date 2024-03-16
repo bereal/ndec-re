@@ -382,3 +382,50 @@ func Round2(data, gamma []byte, iv, pwHash byte) {
 	}
 }
 ```
+
+#### Round 3: Mix with the second password and the gamma hash
+
+The last round is similar to the second, except that it uses the plain second password and the gamma hash:
+
+```assembly
+        push  cx
+        mov   di, 0x1075          ; destination address
+        mov   ah, cs:[0x908]      ; gamma hash
+        xor   bx, bx
+
+read_password:
+        mov   al, cs:[bx+0x608]   ; next password character
+        sub   cs:[di], al
+        xor   cs:[di], al
+        add   cs:[di], al
+        neg   cs:[byte ptr di]
+        sub   cs:[di], ah
+        ror   ah, cl
+        neg   ah
+        xor   ah, al
+        inc   di
+        inc   bx
+        or    al, al
+        jne   not_zero
+        xor   bx, bx              ; to the password start (but we have still used the terminating zero already)
+not_zero:
+        loop  read_password
+        pop   cx
+        ret                       ; the encryption is done
+```
+
+The matching Go code:
+
+```go
+func Round3(data, password []byte, gammaHash byte) {
+	ctr := len(data)
+	password = append(password, 0)
+	for i, b := range data {
+		x := password[i%len(password)]
+		b = -((b - x) ^ x) - x - gammaHash
+		data[i] = b
+		gammaHash = (-ror8(gammaHash, ctr)) ^ x
+		ctr--
+	}
+}
+```

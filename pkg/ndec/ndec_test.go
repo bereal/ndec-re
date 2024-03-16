@@ -61,6 +61,13 @@ func TestEncryption(t *testing.T) {
 		Round2(data, gamma, 0x45, 0x24)
 		checkBin(t, data, "1d7014a15cc018")
 	})
+
+	t.Run("round 3", func(t *testing.T) {
+		data := []byte{0x1d, 0x70, 0x14, 0xa1, 0x5c, 0xc0, 0x18}
+		gamma := Gamma([]byte("password"))
+		Round3(data, []byte("abcdef"), GammaHash(gamma))
+		checkBin(t, data, "166c449c279df2")
+	})
 }
 
 func checkBin(t *testing.T, data []byte, expected string) {

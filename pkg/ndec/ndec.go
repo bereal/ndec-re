@@ -101,6 +101,18 @@ func PasswordHash(password []byte) byte {
 	return hash
 }
 
+func Round3(data, password []byte, gammaHash byte) {
+	ctr := len(data)
+	password = append(password, 0)
+	for i, b := range data {
+		x := password[i%len(password)]
+		b = -((b - x) ^ x) - x - gammaHash
+		data[i] = b
+		gammaHash = (-ror8(gammaHash, ctr)) ^ x
+		ctr--
+	}
+}
+
 func ror8(b byte, n int) byte {
-	return bits.RotateLeft8(b, -n)
+	return bits.RotateLeft8(b, -(n & 7))
 }
