@@ -19,10 +19,7 @@ func TestGamma(t *testing.T) {
 			a3a380a16211bb2240d103cb3a4f2cb396
 		`)
 
-		h := hex.EncodeToString(gamma[:gammaIters])
-		if h != cleanupHex(expected) {
-			t.Errorf("Expected gamma to be %s, but got %s", expected, h)
-		}
+		checkBin(t, gamma[:gammaIters], expected)
 	})
 
 	t.Run("gamma hash", func(t *testing.T) {
@@ -50,10 +47,7 @@ func TestEncryption(t *testing.T) {
 		gamma := Gamma([]byte("password"))
 		data := []byte("test")
 		Round1(data, gamma, Encode)
-		expected := `647f5964`
-		if hex.EncodeToString(data) != expected {
-			t.Errorf("Expected data to be %s, but got %s", expected, hex.EncodeToString(data))
-		}
+		checkBin(t, data, "647f5964")
 
 		Round1(data, gamma, Decode)
 		if string(data) != "test" {
@@ -62,8 +56,19 @@ func TestEncryption(t *testing.T) {
 	})
 
 	t.Run("round 2", func(t *testing.T) {
-
+		data := []byte{0x64, 0x7f, 0x59, 0x64, 0x3a, 0xf3, 0x1a}
+		gamma := Gamma([]byte("password"))
+		Round2(data, gamma, 0x45, 0x24)
+		checkBin(t, data, "1d7014a15cc018")
 	})
+}
+
+func checkBin(t *testing.T, data []byte, expected string) {
+	expected = cleanupHex(expected)
+	encoded := hex.EncodeToString(data)
+	if encoded != expected {
+		t.Errorf("Expected data to be %s, but got %s", expected, encoded)
+	}
 }
 
 func cleanupHex(s string) string {

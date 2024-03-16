@@ -123,7 +123,7 @@ cycle:
         or    al, al
         jne   skip
         neg   al        ; I don't know what it's supposed to do, al is always 0 here anyway
-        ror   al, cl    ; probably it was intended to make gamma zero-terminated, but it doesn't work
+        ror   al, cl    ; probably it was intended to make gamma zero-terminated (see [below](#round-2-mix-with-the-gamma-the-second-password-hash-and-the-iv)), but it doesn't work
 skip:
         stosbb
         ror   dl, cl
@@ -246,9 +246,9 @@ func PasswordHash(password []byte) byte {
 }
 ```
 
-#### Applying gamma to the plain text
+#### Round 1: Mix the plaintext with the gamma
 
-To be quite precise, the gamma is not what's usually called a gamma. Either due to a coding mistake or a misunderstanding,
+To be quite precise, the gamma here is not what's usually called a gamma. Either due to a coding mistake or a misunderstanding,
 instead of applying each byte of the gamma to the matching byte of the input, the entire gamma is applied to each character,
 thus being reduced to a single byte. The only thing that changes is the operation that's used; it's cyclically varies
 between `XOR`, `SUB` and `ADD`. The assembly code is as follows:
@@ -319,6 +319,66 @@ func Round1(data, gamma []byte) {
 		case 2:
 			data[i] = b + sum
 		}
+	}
+}
+```
+
+#### Round 2: Mix with the gamma, the second password hash and the IV
+
+On this round, the gamma is applied to the plaintext again, this time byte by byte,
+but the assumption seems to be that it's zero-terminated, which is not the case (likely to a bug in the gamma generation code).
+This round also makes use of the IV and the second password hash. The assembly code is as follows:
+
+<details><summary>Click to expand</summary>
+
+```assembly
+        ; Input: CX = data length
+
+        push  cx
+        mov   di, 0x1075        ; destination address
+        xor   bx, bx
+        mov   ah, cs:[0x910]    ; IV
+read_gamma:
+        mov   al, cs:[bx+0x508] ; gamma character
+        or    al, al
+        jne   not_zero
+        xor   bx, bx            ; it assumes that the gamma is zero-terminated?
+        jmp   read_gamma        ; (because it's not)
+not_zero:
+        add   al, cs:[0x909]    ; password hash
+        xor   cs:[di], ah
+        add   cs:[di], al
+        xor   cs:[di], al
+        sub   cs:[di], al
+        ror   cs:byte ptr [di], cl
+        ror   ah, cl
+        xor   al, ah            ; this doesn't seem to do anything
+        inc   di
+        inc   bx
+        loop  read_gamma
+        pop   cx
+```
+</details>
+
+The matching Go code:
+
+```go
+func Round2(data, gamma []byte, iv, pwHash byte) {
+	ctr := len(data)
+	gi := 0
+	for i, b := range data {
+		x := gamma[gi]
+		gi++
+		if x == 0 {
+			x, gi = gamma[0], 0
+		}
+
+		x += pwHash
+		b = ((b ^ iv) + x) ^ x - x
+		b = ror8(b, ctr)
+		iv = ror8(iv, ctr)
+		data[i] = b
+		ctr--
 	}
 }
 ```
