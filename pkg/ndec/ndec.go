@@ -25,9 +25,17 @@ func New(password1, password2 []byte) *NDEC {
 }
 
 func (n *NDEC) Encrypt(data []byte, iv byte) {
-	Round1(data, n.gamma, Encode)
-	Round2(data, n.gamma, iv, n.pw2Hash)
-	Round3(data, n.pw2, n.gammaHash)
+	Round1(data, n.gamma, Encrypt)
+	Round2(data, n.gamma, iv, n.pw2Hash, Encrypt)
+	Round3(data, n.pw2, n.gammaHash, Encrypt)
+}
+
+func (n *NDEC) Decrypt(data []byte) []byte {
+	iv, data := data[0], data[1:]
+	Round3(data, n.pw2, n.gammaHash, Decrypt)
+	Round2(data, n.gamma, iv, n.pw2Hash, Decrypt)
+	Round1(data, n.gamma, Decrypt)
+	return data
 }
 
 func Gamma(password []byte) []byte {
@@ -63,20 +71,20 @@ func GammaHash(gamma []byte) byte {
 	return hash
 }
 
-type Direction byte
+type Direction = byte
 
 const (
-	Encode Direction = 1
-	Decode Direction = 0xff // -1
+	Encrypt Direction = 1
+	Decrypt Direction = 0xff
 )
 
-func Round1(data, gamma []byte, encode Direction) {
+func Round1(data, gamma []byte, dir Direction) {
 	var xor, sum byte
 	for _, b := range gamma {
 		xor ^= b
 		sum += b
 	}
-	sum *= byte(encode)
+	sum *= dir
 
 	for i, b := range data {
 		switch i % 3 {
@@ -90,7 +98,7 @@ func Round1(data, gamma []byte, encode Direction) {
 	}
 }
 
-func Round2(data, gamma []byte, iv, pwHash byte) {
+func Round2(data, gamma []byte, iv, pwHash byte, dir Direction) {
 	ctr := len(data)
 	gi := 0
 	for i, b := range data {
@@ -101,8 +109,14 @@ func Round2(data, gamma []byte, iv, pwHash byte) {
 		gi++
 
 		x += pwHash
-		b = ((b ^ iv) + x) ^ x - x
-		b = ror8(b, ctr)
+		if dir == Encrypt {
+			b = ((b ^ iv) + x) ^ x - x
+			b = ror8(b, ctr)
+		} else {
+			b = rol8(b, ctr)
+			b = ((b + x) ^ x - x) ^ iv
+		}
+
 		iv = ror8(iv, ctr)
 		data[i] = b
 		ctr--
@@ -125,18 +139,27 @@ func PasswordHash(password []byte) byte {
 	return hash
 }
 
-func Round3(data, password []byte, gammaHash byte) {
+func Round3(data, password []byte, gammaHash byte, dir Direction) {
 	ctr := len(data)
 	password = append(password, 0)
 	for i, b := range data {
-		x := password[i%len(password)]
-		b = -((b - x) ^ x) - x - gammaHash
+		p := password[i%len(password)]
+		if dir == Encrypt {
+			b = -((b - p) ^ p) - p - gammaHash
+		} else {
+			b = (-b - p - gammaHash) ^ p + p
+		}
+
 		data[i] = b
-		gammaHash = (-ror8(gammaHash, ctr)) ^ x
+		gammaHash = (-ror8(gammaHash, ctr)) ^ p
 		ctr--
 	}
 }
 
 func ror8(b byte, n int) byte {
 	return bits.RotateLeft8(b, -(n & 7))
+}
+
+func rol8(b byte, n int) byte {
+	return bits.RotateLeft8(b, n&7)
 }

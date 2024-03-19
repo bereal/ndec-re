@@ -16,10 +16,10 @@ A stretch goal is to re-implement the program in a high-level language.
 I was able to re-implement the encryption part in Go, it can be built using `make` and run as:
 
 ```sh
-./ndec -i <input-file> -o <output-file> -p1 <password1> -p2 <password2> [-iv <iv>]
+./ndec -i <input-file> -o <output-file> -p1 <password1> -p2 <password2> [-iv <iv>] <command>
 ```
 
-were `iv` is an optional initialization vector (1 byte in the hexadecimal form)
+where `command` is either `encrypt` or `decrypt` and `iv` is an optional initialization vector (1 byte in the hexadecimal form).
 
 ### General Overview
 
@@ -399,12 +399,12 @@ The last round is similar to the second, except that it uses the plain second pa
         mov   ah, cs:[0x908]      ; gamma hash
         xor   bx, bx
 
-read_password:
+next_byte:
         mov   al, cs:[bx+0x608]   ; next password character
         sub   cs:[di], al
         xor   cs:[di], al
         add   cs:[di], al
-        neg   cs:[byte ptr di]
+        neg   cs:byte ptr [di]
         sub   cs:[di], ah
         ror   ah, cl
         neg   ah
@@ -416,7 +416,7 @@ read_password:
         xor   bx, bx              ; to the password start
                                   ; (but we have still used the terminating zero already)
 not_zero:
-        loop  read_password
+        loop  next_byte
         pop   cx
         ret                       ; the encryption is done
 ```
@@ -437,3 +437,71 @@ func Round3(data, password []byte, gammaHash byte) {
 	}
 }
 ```
+
+### Decryption
+
+Decryption part is the inverse of encryption, here's the code for it in the reverse order
+(gamma and hash generation is omitted, it's the same code):
+
+
+#### Round 3 Inverse:
+
+```assembly
+        push  cx
+        mov   di, 0xc75          ; encrypted data
+        mov   ah, cs:[0x908]     ; gamma hash
+        xor   bx, bx
+next_byte:
+        mov   al, cs:[bx+0x608]  ; next password character
+        add   cs:[di], ah
+        neg   cs:byte ptr [di]
+        sub   cs:[di], al
+        xor   cs:[di], al
+        add   cs:[di], al
+        ror   ah, cl
+        neg   ah
+        xor   ah, al
+        inc   di
+        inc   bx
+        or    al, al
+        jne   not_zero
+        xor   bx, bx
+not_zero:
+        loop  next_byte
+        pop cx
+```
+
+
+#### Round 2 Inverse:
+
+```assembly
+        push  cx
+        mov   di, 0xc75         ; encrypted data
+        xor   bx, bx
+        mov   ah, cs:[0x910]    ; IV
+
+read_gamma:
+        mov   al, cs:[bx+0x508] ; gamma character
+        or    al, al
+        jne   not_zero
+        xor   bx, bx
+        jmp   read_gamma
+
+not_zero:
+        add   al, cs:[0x909]    ; password hash
+        rol   cs:byte ptr [di], cl
+        add   cs:[di], al
+        xor   cs:[di], al
+        sub   cs:[di], al
+        xor   cs:[di], ah
+        ror   ah, cl
+        xor   al, ah
+        inc   di
+        inc bx
+        loop read_gamma
+        pop cx
+```
+
+#### Round 1 Inverse:
+
+Round 1 decryption is exactly like encryption just the operations change in another order: `XOR`, `ADD`, `SUB`.

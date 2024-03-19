@@ -1,6 +1,7 @@
 package ndec
 
 import (
+	"crypto/sha1"
 	"encoding/hex"
 	"regexp"
 	"testing"
@@ -42,32 +43,56 @@ func TestPasswordHash(t *testing.T) {
 	}
 }
 
-func TestEncryption(t *testing.T) {
+func TestRounds(t *testing.T) {
 	t.Run("round 1", func(t *testing.T) {
 		gamma := Gamma([]byte("password"))
 		data := []byte("test")
-		Round1(data, gamma, Encode)
+		Round1(data, gamma, Encrypt)
 		checkBin(t, data, "647f5964")
 
-		Round1(data, gamma, Decode)
+		Round1(data, gamma, Decrypt)
 		if string(data) != "test" {
 			t.Errorf("Expected decoded data to be test, but got %s", data)
 		}
 	})
 
 	t.Run("round 2", func(t *testing.T) {
-		data := []byte{0x64, 0x7f, 0x59, 0x64, 0x3a, 0xf3, 0x1a}
+		data, _ := hex.DecodeString("647f59643af31a")
 		gamma := Gamma([]byte("password"))
-		Round2(data, gamma, 0x45, 0x24)
+		Round2(data, gamma, 0x45, 0x24, Encrypt)
 		checkBin(t, data, "1d7014a15cc018")
+
+		Round2(data, gamma, 0x45, 0x24, Decrypt)
+		checkBin(t, data, "647f59643af31a")
 	})
 
 	t.Run("round 3", func(t *testing.T) {
-		data := []byte{0x1d, 0x70, 0x14, 0xa1, 0x5c, 0xc0, 0x18}
+		data, _ := hex.DecodeString("1d7014a15cc018")
 		gamma := Gamma([]byte("password"))
-		Round3(data, []byte("abcdef"), GammaHash(gamma))
+
+		Round3(data, []byte("abcdef"), GammaHash(gamma), Encrypt)
 		checkBin(t, data, "166c449c279df2")
+
+		Round3(data, []byte("abcdef"), GammaHash(gamma), Decrypt)
+		checkBin(t, data, "1d7014a15cc018")
 	})
+}
+
+func TestAPI(t *testing.T) {
+	text := "White knight is sliding down the poker, he balances very badly!\x0d\x0a"
+	data := []byte(text)
+	ndec := New([]byte("password"), []byte("abcdef"))
+	ndec.Encrypt(data, 0x1c)
+	data = append([]byte{0x1c}, data...)
+
+	result := sha1.New()
+	_, _ = result.Write(data)
+
+	checkBin(t, result.Sum(nil), "f1d3b879e72a572713446cb0390c610237f4fac0")
+
+	if string(ndec.Decrypt(data)) != text {
+		t.Errorf("Expected decrypted data to be %s, but got %s", text, data)
+	}
 }
 
 func checkBin(t *testing.T, data []byte, expected string) {
