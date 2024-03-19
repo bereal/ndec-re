@@ -55,8 +55,6 @@ For analysis I used Borland Turbo Debugger installed on Free DOS running in QEMU
 
 The program starts as follows:
 
-<details><summary>Click to expand</summary>
-
 ```assembly
         push ax
         mov ax,0x1f75    ; how much space is needed
@@ -81,7 +79,6 @@ The program starts as follows:
         push bx
         retf             ; jump to the copied code
 ```
-</details>
 
 In short, it copies a piece of code slightly below the top of the stack and jumps to it. The copied code in turn copies a bunch of data
 right below itelf, and does a lot of magic with it that I am yet to process. Then it again jumps to the start of it.
@@ -104,12 +101,14 @@ The encryption consists of the few steps:
 
 #### Gamma Generation
 
-This is the assembly code that generates gamma from the first password:
-
-<details><summary>Click to expand</summary>
+This is the assembly code that generates gamma from the first password. There seems to be a bug here,
+since if we look at [Round 2](#round-2-mix-with-the-gamma-the-second-password-hash-and-the-iv),
+we see that it assumes that the gamma is zero-terminated, and here it seems to try avoid having zeros in the middle,
+but it doesn't work.
 
 ```assembly
         ; Input: DS:DI = pointer to the password (in fact, DI=0x508)
+        ; will be modified in place
 
         not   word ptr [di]
         mov   si, di
@@ -127,7 +126,7 @@ cycle:
         or    al, al
         jne   skip
         neg   al        ; I don't know what it's supposed to do, al is always 0 here anyway
-        ror   al, cl    ; probably it was intended to make gamma zero-terminated (see [below](#round-2-mix-with-the-gamma-the-second-password-hash-and-the-iv)), but it doesn't work
+        ror   al, cl    ; it probably was intended to make gamma zero-terminated (see round 2), but it doesn't work
 skip:
         stosbb
         ror   dl, cl
@@ -140,7 +139,6 @@ skip:
 
         ret
 ```
-</details>
 
 The matching Go code:
 
@@ -257,8 +255,6 @@ instead of applying each byte of the gamma to the matching byte of the input, th
 thus being reduced to a single byte. The only thing that changes is the operation that's used; it's cyclically varies
 between `XOR`, `SUB` and `ADD`. The assembly code is as follows:
 
-<details><summary>Click to expand</summary>
-
 ```assembly
         ; Input: DS:SI = plaintext address (SI=0xC75)
         ;        DS:DI = destination address (DI=1075)
@@ -302,7 +298,6 @@ continue:
 
         ; ... the rest of the encryption procedure
 ```
-</details>
 
 The matching Go code (instead of looping through the "gamma" each time, I first reduce it to a single byte):
 
@@ -330,10 +325,9 @@ func Round1(data, gamma []byte) {
 #### Round 2: Mix with the gamma, the second password hash and the IV
 
 On this round, the gamma is applied to the plaintext again, this time byte by byte,
-but the assumption seems to be that it's zero-terminated, which is not the case (likely to a bug in the gamma generation code).
+but the assumption seems to be that it's zero-terminated, which is not the case (likely due to a bug in the gamma generation code).
+As a result, the gamma may be not fully used.
 This round also makes use of the IV and the second password hash. The assembly code is as follows:
-
-<details><summary>Click to expand</summary>
 
 ```assembly
         ; Input: CX = data length
@@ -362,7 +356,6 @@ not_zero:
         loop  read_gamma
         pop   cx
 ```
-</details>
 
 The matching Go code:
 
@@ -391,8 +384,6 @@ func Round2(data, gamma []byte, iv, pwHash byte) {
 
 The last round is similar to the second, except that it uses the plain second password and the gamma hash:
 
-<details><summary>Click to expand</summary>
-
 ```assembly
         push  cx
         mov   di, 0x1075          ; destination address
@@ -420,7 +411,6 @@ not_zero:
         pop   cx
         ret                       ; the encryption is done
 ```
-</details>
 
 The matching Go code:
 
@@ -470,7 +460,6 @@ not_zero:
         loop  next_byte
         pop cx
 ```
-
 
 #### Round 2 Inverse:
 
