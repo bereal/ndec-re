@@ -126,7 +126,7 @@ cycle:
         or    al, al
         jne   skip
         neg   al        ; I don't know what it's supposed to do, al is always 0 here anyway
-        ror   al, cl    ; it probably was intended to make gamma zero-terminated (see round 2), but it doesn't work
+        ror   al, cl
 skip:
         stosbb
         ror   dl, cl
@@ -206,7 +206,6 @@ func GammaHash(data []byte) byte {
 }
 ```
 
-
 #### Hashing the second password
 
 The second hash is generated in a similar way from the second password and storead at `DS:909`, the assembly code:
@@ -253,7 +252,8 @@ func PasswordHash(password []byte) byte {
 To be quite precise, the gamma here is not what's usually called a gamma. Either due to a coding mistake or a misunderstanding,
 instead of applying each byte of the gamma to the matching byte of the input, the entire gamma is applied to each character,
 thus being reduced to a single byte. The only thing that changes is the operation that's used; it's cyclically varies
-between `XOR`, `SUB` and `ADD`. The assembly code is as follows:
+between `XOR`, `SUB` and `ADD`. That's done by self-modifying the code in the loop, the opcode is calculated by the `XLAT` instruction
+based on the current byte index. The assembly code is as follows:
 
 ```assembly
         ; Input: DS:SI = plaintext address (SI=0xC75)
@@ -494,3 +494,4 @@ not_zero:
 #### Round 1 Inverse:
 
 Round 1 decryption is exactly like encryption just the operations change in another order: `XOR`, `ADD`, `SUB`.
+That's achieved by passing another table address to the `XLAT` instruction.
